@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui"
   },
