@@ -60,21 +60,21 @@ describe('gemini service', () => {
     });
 
     it('throws error when response text is empty', async () => {
-      mockGenerateContent.mockResolvedValueOnce({
-        text: null,
-      });
+      // Mock all retries to return empty text
+      mockGenerateContent.mockResolvedValue({ text: null });
 
       await expect(extractBidInfo(mockBase64, mockMimeType)).rejects.toThrow(
         'No response text from Gemini'
       );
-    });
+    }, 35000); // Longer timeout due to retry logic with exponential backoff
 
-    it('throws error when API call fails', async () => {
-      const apiError = new Error('API rate limit exceeded');
-      mockGenerateContent.mockRejectedValueOnce(apiError);
+    it('throws error when API call fails with non-retryable error', async () => {
+      // API errors (401/403) are not retried
+      const apiError = new Error('401 Unauthorized');
+      mockGenerateContent.mockRejectedValue(apiError);
 
       await expect(extractBidInfo(mockBase64, mockMimeType)).rejects.toThrow(
-        'API rate limit exceeded'
+        '401 Unauthorized'
       );
     });
 
@@ -148,13 +148,14 @@ describe('gemini service', () => {
       );
     });
 
-    it('throws error when API fails', async () => {
-      const apiError = new Error('Network error');
-      mockGenerateContent.mockRejectedValueOnce(apiError);
+    it('throws error when API fails with non-retryable error', async () => {
+      // API errors are not retried
+      const apiError = new Error('403 Forbidden');
+      mockGenerateContent.mockRejectedValue(apiError);
 
       await expect(
         askAssistant(mockPrompt, mockBase64, mockMimeType)
-      ).rejects.toThrow('Network error');
+      ).rejects.toThrow('403 Forbidden');
     });
 
     it('includes document in request', async () => {
@@ -228,13 +229,14 @@ describe('gemini service', () => {
       );
     });
 
-    it('throws error when API fails', async () => {
+    it('throws error when API fails with non-retryable error', async () => {
       const messages = [{ role: 'user', text: 'Test' }];
-      const apiError = new Error('Summarization failed');
-      mockGenerateContent.mockRejectedValueOnce(apiError);
+      // API errors are not retried
+      const apiError = new Error('401 Unauthorized');
+      mockGenerateContent.mockRejectedValue(apiError);
 
       await expect(summarizeConversation(messages)).rejects.toThrow(
-        'Summarization failed'
+        '401 Unauthorized'
       );
     });
 

@@ -1,15 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BidCalendar AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              dark: {
+                bg: '#111827',
+                card: '#1f2937',
+                border: '#374151',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', sans-serif;
         background-color: #f3f4f6;
+        transition: background-color 0.3s;
+      }
+      html.dark body {
+        background-color: #111827;
+      }
+      /* Smooth transitions for dark mode */
+      * {
+        transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+      }
+      /* Custom scrollbar for dark mode */
+      html.dark ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      html.dark ::-webkit-scrollbar-track {
+        background: #1f2937;
+      }
+      html.dark ::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 4px;
+      }
+      html.dark ::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
       }
     </style>
   <script type="importmap">
