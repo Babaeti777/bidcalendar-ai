@@ -57,7 +57,7 @@ interface AppState {
 
   // Actions
   setStatus: (status: ProcessingStatus) => void;
-  setProgress: (progress: number) => void;
+  setProgress: (progress: number | ((prev: number) => number)) => void;
   setData: (data: FullProjectData | null) => void;
   setError: (error: AppError | null) => void;
   setFile: (file: FileState) => void;
@@ -133,7 +133,9 @@ export const useAppStore = create<AppState>()(
 
       // Processing actions
       setStatus: (status) => set({ status }),
-      setProgress: (progress) => set({ progress }),
+      setProgress: (progress) => set((state) => ({
+        progress: typeof progress === 'function' ? progress(state.progress) : progress,
+      })),
       setData: (data) => set({ data }),
       setError: (error) => set({ error }),
 

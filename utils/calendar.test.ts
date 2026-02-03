@@ -257,6 +257,9 @@ describe('calendar utilities', () => {
       bondRequestDeadline: '2025-01-10T17:00:00.000Z',
       finalizeRfiDeadline: '2025-01-09T17:00:00.000Z',
       finalizeBidPackageDeadline: '2025-01-14T17:00:00.000Z',
+      subcontractorBidDeadline: '2025-01-08T17:00:00.000Z',
+      scopeReviewDeadline: '2025-01-05T17:00:00.000Z',
+      addendumCheckDeadline: '2025-01-12T17:00:00.000Z',
     };
 
     const defaultOptions: ExportOptions = {
@@ -410,6 +413,9 @@ describe('calendar utilities', () => {
         bondRequestDeadline: null,
         finalizeRfiDeadline: null,
         finalizeBidPackageDeadline: null,
+        subcontractorBidDeadline: null,
+        scopeReviewDeadline: null,
+        addendumCheckDeadline: null,
       };
 
       const result = generateICS(minimalData, defaultOptions);
