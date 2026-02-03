@@ -15,6 +15,17 @@ vi.mock('./services/gemini', () => ({
     details: 'Test error details',
     retryable: true,
   })),
+  getCustomApiKey: vi.fn(() => null),
+  setCustomApiKey: vi.fn(),
+  hasCustomApiKey: vi.fn(() => false),
+  MODEL_INFO: {
+    name: 'gemini-2.0-flash',
+    limits: {
+      requestsPerMinute: 15,
+      tokensPerMinute: 1_000_000,
+      requestsPerDay: 1500,
+    },
+  },
 }));
 
 // Mock the calendar utilities - we test these separately

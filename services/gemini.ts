@@ -1,6 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractedBidData, AppError, ErrorType, RedactionSettings } from "../types";
 
+// Model configuration - using gemini-2.0-flash for better free tier limits
+// gemini-2.0-flash: 15 RPM, 1M TPM, 1500 RPD (free tier)
+// gemini-3-pro-preview: 2 RPM, 32K TPM, 50 RPD (free tier)
+const DEFAULT_MODEL = 'gemini-2.0-flash';
+
+// Get API key - supports custom key from localStorage or env variable
+function getApiKey(): string {
+  if (typeof window !== 'undefined') {
+    const customKey = localStorage.getItem('gemini_api_key');
+    if (customKey) return customKey;
+  }
+  return process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+}
+
 // Configuration for extraction schema
 const extractionSchema = {
   type: Type.OBJECT,
@@ -146,11 +160,11 @@ export async function extractBidInfo(
   mimeType: string,
   onRetry?: (attempt: number, delay: number) => void
 ): Promise<ExtractedBidData> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
   return withRetry(async () => {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: DEFAULT_MODEL,
       contents: {
         parts: [
           {
@@ -168,7 +182,6 @@ export async function extractBidInfo(
       config: {
         responseMimeType: "application/json",
         responseSchema: extractionSchema,
-        thinkingConfig: { thinkingBudget: 32768 },
       },
     });
 
@@ -196,11 +209,11 @@ export async function askAssistant(
   mimeType: string,
   onRetry?: (attempt: number, delay: number) => void
 ): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
   return withRetry(async () => {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: DEFAULT_MODEL,
       contents: {
         parts: [
           {
@@ -211,9 +224,6 @@ export async function askAssistant(
           },
           { text: prompt },
         ],
-      },
-      config: {
-        thinkingConfig: { thinkingBudget: 32768 },
       },
     });
 
@@ -232,14 +242,14 @@ export async function summarizeConversation(
 ): Promise<string> {
   if (messages.length === 0) return "No conversation to summarize.";
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const conversationContext = messages
     .map(m => `${m.role.toUpperCase()}: ${m.text}`)
     .join('\n');
 
   return withRetry(async () => {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: DEFAULT_MODEL,
       contents: `Summarize the following conversation between a construction estimator and an AI assistant regarding a bidding document.
       Extract only the most critical takeaways, risks, or requirements discussed.
       Format as a concise bulleted list.
@@ -248,7 +258,6 @@ export async function summarizeConversation(
       ${conversationContext}`,
       config: {
         systemInstruction: "You are an expert construction bid analyst. Your goal is to provide high-density, low-word-count summaries of technical conversations.",
-        thinkingConfig: { thinkingBudget: 32768 },
       }
     });
 
@@ -257,6 +266,38 @@ export async function summarizeConversation(
     return text;
   }, MAX_RETRIES, onRetry);
 }
+
+// API key management utilities
+export function setCustomApiKey(key: string): void {
+  if (typeof window !== 'undefined') {
+    if (key) {
+      localStorage.setItem('gemini_api_key', key);
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+  }
+}
+
+export function getCustomApiKey(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('gemini_api_key');
+  }
+  return null;
+}
+
+export function hasCustomApiKey(): boolean {
+  return !!getCustomApiKey();
+}
+
+// Export model info for UI
+export const MODEL_INFO = {
+  name: DEFAULT_MODEL,
+  limits: {
+    requestsPerMinute: 15,
+    tokensPerMinute: 1_000_000,
+    requestsPerDay: 1500,
+  },
+};
 
 // Export error utilities
 export { classifyError, type AppError };
