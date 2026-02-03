@@ -1,7 +1,8 @@
-import React from 'react';
-import { X, Clock, Shield, Moon, Sun, Monitor } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Clock, Shield, Moon, Sun, Monitor, Key, Info } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { DEFAULT_LEAD_TIMES, Theme } from '../types';
+import { getCustomApiKey, setCustomApiKey, MODEL_INFO } from '../services/gemini';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -20,6 +21,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   } = useAppStore();
 
   const isDark = theme === 'dark';
+
+  // API key state
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+
+  useEffect(() => {
+    const existingKey = getCustomApiKey();
+    if (existingKey) {
+      setApiKey(existingKey);
+    }
+  }, []);
+
+  const handleSaveApiKey = () => {
+    setCustomApiKey(apiKey.trim());
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 2000);
+  };
+
+  const handleClearApiKey = () => {
+    setCustomApiKey('');
+    setApiKey('');
+    setApiKeySaved(true);
+    setTimeout(() => setApiKeySaved(false), 2000);
+  };
 
   const handleLeadTimeChange = (key: keyof typeof leadTimeSettings, value: string) => {
     const numValue = parseInt(value, 10);
@@ -149,6 +174,94 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* API Key Section */}
+          <div style={{ marginBottom: '32px' }}>
+            <h4
+              style={{
+                fontSize: '0.9rem',
+                fontWeight: '700',
+                color: isDark ? '#d1d5db' : '#374151',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Key size={16} /> Gemini API Key
+            </h4>
+
+            <div
+              style={{
+                padding: '12px',
+                background: isDark ? '#1e3a5f' : '#eff6ff',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+              }}
+            >
+              <Info size={16} style={{ color: isDark ? '#93c5fd' : '#1e40af', flexShrink: 0, marginTop: '2px' }} />
+              <p style={{ fontSize: '0.8rem', color: isDark ? '#93c5fd' : '#1e40af', margin: 0 }}>
+                Using <strong>{MODEL_INFO.name}</strong> with free tier limits: {MODEL_INFO.limits.requestsPerMinute} requests/min, {MODEL_INFO.limits.requestsPerDay.toLocaleString()} requests/day.
+                Add your own API key to bypass quota issues.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="password"
+                placeholder="Enter your Gemini API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  border: `1px solid ${isDark ? '#374151' : '#d1d5db'}`,
+                  borderRadius: '8px',
+                  fontSize: '0.9rem',
+                  background: isDark ? '#111827' : '#fff',
+                  color: isDark ? '#f9fafb' : '#111827',
+                }}
+              />
+              <button
+                onClick={handleSaveApiKey}
+                style={{
+                  padding: '10px 16px',
+                  background: '#2563eb',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                {apiKeySaved ? 'Saved!' : 'Save'}
+              </button>
+              {apiKey && (
+                <button
+                  onClick={handleClearApiKey}
+                  style={{
+                    padding: '10px 16px',
+                    background: isDark ? '#374151' : '#e5e7eb',
+                    color: isDark ? '#f9fafb' : '#374151',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <p style={{ fontSize: '0.75rem', color: isDark ? '#6b7280' : '#9ca3af', marginTop: '8px' }}>
+              Get a free API key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>Google AI Studio</a>. Your key is stored locally in your browser.
+            </p>
           </div>
 
           {/* Lead Times Section */}
