@@ -1,10 +1,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractedBidData, AppError, ErrorType, RedactionSettings } from "../types";
 
-// Model configuration - using gemini-2.0-flash for better free tier limits
-// gemini-2.0-flash: 15 RPM, 1M TPM, 1500 RPD (free tier)
-// gemini-3-pro-preview: 2 RPM, 32K TPM, 50 RPD (free tier)
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+// Model configuration - using gemini-2.5-flash for good balance of quality and free tier limits
+// gemini-2.5-flash: 10 RPM, 250K TPM, 250 RPD (free tier)
+// gemini-2.5-flash-lite: 15 RPM, 250K TPM, 1000 RPD (free tier, lower quality)
+// gemini-2.5-pro: 5 RPM, 250K TPM, 100 RPD (free tier, best quality)
+// Note: gemini-2.0-flash is deprecated (shutdown March 31, 2026)
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // Get API key - supports custom key from localStorage or env variable
 function getApiKey(): string {
@@ -293,9 +295,9 @@ export function hasCustomApiKey(): boolean {
 export const MODEL_INFO = {
   name: DEFAULT_MODEL,
   limits: {
-    requestsPerMinute: 15,
-    tokensPerMinute: 1_000_000,
-    requestsPerDay: 1500,
+    requestsPerMinute: 10,
+    tokensPerMinute: 250_000,
+    requestsPerDay: 250,
   },
 };
 

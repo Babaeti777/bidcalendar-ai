@@ -19,11 +19,11 @@ vi.mock('./services/gemini', () => ({
   setCustomApiKey: vi.fn(),
   hasCustomApiKey: vi.fn(() => false),
   MODEL_INFO: {
-    name: 'gemini-2.0-flash',
+    name: 'gemini-2.5-flash',
     limits: {
-      requestsPerMinute: 15,
-      tokensPerMinute: 1_000_000,
-      requestsPerDay: 1500,
+      requestsPerMinute: 10,
+      tokensPerMinute: 250_000,
+      requestsPerDay: 250,
     },
   },
 }));
