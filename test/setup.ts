@@ -30,3 +30,6 @@ Object.defineProperty(URL, 'revokeObjectURL', {
   writable: true,
   value: vi.fn(),
 });
+
+// Mock scrollIntoView for ChatSidebar
+Element.prototype.scrollIntoView = vi.fn();
