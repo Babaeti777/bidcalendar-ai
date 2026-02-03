@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { ExtractedBidData } from "../types";
+import { ExtractedBidData, AppError, ErrorType, RedactionSettings } from "../types";
 
 // Configuration for extraction schema
 const extractionSchema = {
@@ -20,13 +19,136 @@ const extractionSchema = {
   required: ["projectName", "agencyName", "isSiteVisitMandatory"],
 };
 
+// Retry configuration
+const MAX_RETRIES = 4;
+const BASE_DELAY = 2000; // 2 seconds
+
+// Sleep helper
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Error classification
+function classifyError(error: any): AppError {
+  const message = error?.message || String(error);
+  const lowerMessage = message.toLowerCase();
+
+  // Network errors
+  if (lowerMessage.includes('network') || lowerMessage.includes('fetch') || lowerMessage.includes('timeout')) {
+    return {
+      type: 'network_error',
+      message: 'Network connection failed',
+      details: 'Unable to reach the AI service. Please check your internet connection and try again.',
+      retryable: true,
+    };
+  }
+
+  // Rate limiting
+  if (lowerMessage.includes('rate limit') || lowerMessage.includes('429') || lowerMessage.includes('quota')) {
+    return {
+      type: 'rate_limit',
+      message: 'Rate limit exceeded',
+      details: 'Too many requests. Please wait a moment before trying again.',
+      retryable: true,
+    };
+  }
+
+  // API errors
+  if (lowerMessage.includes('api') || lowerMessage.includes('401') || lowerMessage.includes('403')) {
+    return {
+      type: 'api_error',
+      message: 'API authentication failed',
+      details: 'Please check your API key configuration.',
+      retryable: false,
+    };
+  }
+
+  // Invalid document
+  if (lowerMessage.includes('invalid') || lowerMessage.includes('corrupt') || lowerMessage.includes('cannot read')) {
+    return {
+      type: 'invalid_document',
+      message: 'Invalid document format',
+      details: 'The document could not be read. Please ensure it is a valid PDF or image file.',
+      retryable: false,
+    };
+  }
+
+  // Extraction failed
+  if (lowerMessage.includes('extract') || lowerMessage.includes('parse') || lowerMessage.includes('json')) {
+    return {
+      type: 'extraction_failed',
+      message: 'Data extraction failed',
+      details: 'Could not extract bid information from the document. Try a clearer scan or manual entry.',
+      retryable: true,
+    };
+  }
+
+  // Default unknown error
+  return {
+    type: 'unknown',
+    message: 'An unexpected error occurred',
+    details: message,
+    retryable: true,
+  };
+}
+
+// Retry wrapper with exponential backoff
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  onRetry?: (attempt: number, delay: number) => void
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const classifiedError = classifyError(error);
+
+      // Don't retry non-retryable errors
+      if (!classifiedError.retryable || attempt === maxRetries) {
+        throw error;
+      }
+
+      // Exponential backoff: 2s, 4s, 8s, 16s
+      const delay = BASE_DELAY * Math.pow(2, attempt);
+      onRetry?.(attempt + 1, delay);
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+// Redaction helper
+export function applyRedaction(text: string, settings: RedactionSettings): string {
+  if (!settings.enabled || !settings.patterns.length) {
+    return text;
+  }
+
+  let redacted = text;
+  for (const pattern of settings.patterns) {
+    try {
+      const regex = new RegExp(pattern, 'gi');
+      redacted = redacted.replace(regex, '[REDACTED]');
+    } catch {
+      // Invalid regex, skip
+    }
+  }
+  return redacted;
+}
+
 /**
  * Extracts bid information from a base64 encoded document using Gemini.
  */
-export async function extractBidInfo(fileBase64: string, mimeType: string): Promise<ExtractedBidData> {
-  // Create a new instance for every call to ensure updated API Key is used from the environment.
+export async function extractBidInfo(
+  fileBase64: string,
+  mimeType: string,
+  onRetry?: (attempt: number, delay: number) => void
+): Promise<ExtractedBidData> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  try {
+
+  return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
@@ -38,7 +160,7 @@ export async function extractBidInfo(fileBase64: string, mimeType: string): Prom
             },
           },
           {
-            text: `Analyze this bidding document and extract the key details into the specified JSON format. 
+            text: `Analyze this bidding document and extract the key details into the specified JSON format.
             Return dates in strict ISO 8601 format. If time isn't mentioned, use 17:00:00.`,
           },
         ],
@@ -52,20 +174,31 @@ export async function extractBidInfo(fileBase64: string, mimeType: string): Prom
 
     const text = response.text;
     if (!text) throw new Error("No response text from Gemini");
-    return JSON.parse(text) as ExtractedBidData;
-  } catch (error) {
-    console.error("Error extracting bid info:", error);
-    throw error;
-  }
+
+    const parsed = JSON.parse(text) as ExtractedBidData;
+
+    // Validate that we got at least one date
+    const hasDate = parsed.bidDueDate || parsed.rfiDueDate || parsed.siteVisitDate;
+    if (!hasDate) {
+      console.warn("No dates found in document");
+    }
+
+    return parsed;
+  }, MAX_RETRIES, onRetry);
 }
 
 /**
  * Asks a technical question about the bid document.
  */
-export async function askAssistant(prompt: string, fileBase64: string, mimeType: string) {
-  // Create a new instance for every call to ensure updated API Key is used from the environment.
+export async function askAssistant(
+  prompt: string,
+  fileBase64: string,
+  mimeType: string,
+  onRetry?: (attempt: number, delay: number) => void
+): Promise<string> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  try {
+
+  return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
@@ -83,32 +216,34 @@ export async function askAssistant(prompt: string, fileBase64: string, mimeType:
         thinkingConfig: { thinkingBudget: 32768 },
       },
     });
-    return response.text;
-  } catch (error) {
-    console.error("Assistant error:", error);
-    throw error;
-  }
+
+    const text = response.text;
+    if (!text) throw new Error("No response from assistant");
+    return text;
+  }, MAX_RETRIES, onRetry);
 }
 
 /**
  * Summarizes the conversation between user and assistant.
  */
-export async function summarizeConversation(messages: { role: string; text: string }[]) {
+export async function summarizeConversation(
+  messages: { role: string; text: string }[],
+  onRetry?: (attempt: number, delay: number) => void
+): Promise<string> {
   if (messages.length === 0) return "No conversation to summarize.";
-  
-  // Create a new instance for every call to ensure updated API Key is used from the environment.
+
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const conversationContext = messages
     .map(m => `${m.role.toUpperCase()}: ${m.text}`)
     .join('\n');
 
-  try {
+  return withRetry(async () => {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Summarize the following conversation between a construction estimator and an AI assistant regarding a bidding document. 
-      Extract only the most critical takeaways, risks, or requirements discussed. 
+      contents: `Summarize the following conversation between a construction estimator and an AI assistant regarding a bidding document.
+      Extract only the most critical takeaways, risks, or requirements discussed.
       Format as a concise bulleted list.
-      
+
       CONVERSATION:
       ${conversationContext}`,
       config: {
@@ -116,9 +251,12 @@ export async function summarizeConversation(messages: { role: string; text: stri
         thinkingConfig: { thinkingBudget: 32768 },
       }
     });
-    return response.text;
-  } catch (error) {
-    console.error("Summarization error:", error);
-    throw error;
-  }
+
+    const text = response.text;
+    if (!text) throw new Error("No summary generated");
+    return text;
+  }, MAX_RETRIES, onRetry);
 }
+
+// Export error utilities
+export { classifyError, type AppError };
