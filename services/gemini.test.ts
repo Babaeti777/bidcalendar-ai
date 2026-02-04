@@ -95,7 +95,7 @@ describe('gemini service', () => {
 
       expect(mockGenerateContent).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           contents: expect.objectContaining({
             parts: expect.arrayContaining([
               expect.objectContaining({
